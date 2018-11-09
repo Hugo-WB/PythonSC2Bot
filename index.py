@@ -8,11 +8,12 @@ global tech
 global nexuses
 global cheese
 global pylon
-print("hi2")
-print(TWILIGHTCOUNCIL)
 #gateway:1 cyber:2 twilight/robot/stargate:3 roboBay/fleetBeacon:4
 class WorkerRushBot(sc2.BotAI):
+	buildLocation=None
+	blink = False
 	async def on_step(self, iteration):
+		# print("                             ",self.supply_used/self.workers.amount)
 		tech = await self.techCheck()
 		nexuses = self.units(NEXUS).ready
 		cheese = False
@@ -27,9 +28,12 @@ class WorkerRushBot(sc2.BotAI):
 		await self.expand(tech)
 		await self.getGas(tech,nexuses)
 		await self.getProduction(tech,techChoice,techChoice2)
+		await self.buildArmy(tech,techChoice,techChoice2)
+		await self.researchUpgrades(tech,techChoice,techChoice2)
+		await self.findPosition()
 	async def build_workers(self):
 		for nexus in self.units(NEXUS).ready.noqueue:
-			if self.can_afford(PROBE) and self.units(PROBE).amount < 70 and self.units(PROBE).amount<(self.units(NEXUS).amount*26):
+			if self.can_afford(PROBE) and self.units(PROBE).amount < 70 and self.units(PROBE).amount<(self.units(NEXUS).amount*24):
 				await self.do(nexus.train(PROBE))
 				print("Worker")
 
@@ -38,7 +42,7 @@ class WorkerRushBot(sc2.BotAI):
 			nexuses = self.units(NEXUS).ready
 			if nexuses.exists:
 				if self.can_afford(PYLON):
-					await self.build(PYLON, near=nexuses.first)
+					await self.build(PYLON, near=self.buildLocation)
 					print("Building Pylon")
 
 	async def expand(self,tech):
@@ -85,12 +89,17 @@ class WorkerRushBot(sc2.BotAI):
 				await self.build(techChoice, near=pylon)
 				print("Tech = 3, ",techChoice,"is on the way")
 				tech = 3
-			if tech == 4 and self.can_afford(techChoice2):
+			if tech == 4 and self.can_afford(techChoice2) and self.supply_used>170:
 				await self.build(techChoice2, near=pylon)
 				print("tech = 4,",techChoice2,"is on the way")
 
-	async def buildArmy(self,limit):
-		pass
+	async def buildArmy(self,tech,techChoice,techChoice2):
+		gateways = self.units(GATEWAY)
+		wrokerToArmyRatio =(self.supply_used-self.workers.amount)/self.workers.amount
+		for gw in gateways:
+			if (self.can_afford(STALKER) and self.units(CYBERNETICSCORE).amount > 0) and ((self.workers.amount<35 and wrokerToArmyRatio<0.3) or (34<self.workers.amount<60 and wrokerToArmyRatio<0.4) or (self.workers.amount>59)) and (gw.noqueue):
+				print("Stalker!!!")
+				await self.do(gw.train(STALKER))
 
 	async def getGas(self,tech,nexuses):
 		gas = 0
@@ -111,17 +120,29 @@ class WorkerRushBot(sc2.BotAI):
 			await self.do(worker.build(ASSIMILATOR,geyser))
 	async def getProduction(self,tech,techChoice,techChoice2):
 		totalProduction = self.units(GATEWAY).amount+self.units(ROBOTICSFACILITY).amount+self.units(STARGATE).amount
-		if (totalProduction/self.units(NEXUS).amount)<=3:
+		if (totalProduction/self.units(NEXUS).amount)<3 and tech >= 2:
 			pylon = self.units(PYLON).ready.random
-			if (self.units(GATEWAY).amount/self.units(NEXUS).amount)<=2 and tech >=2:
+			if (self.units(GATEWAY).amount/self.units(NEXUS).amount)<=2 and tech ==2 and self.can_afford(GATEWAY):
 				await self.build(GATEWAY, near=pylon)
-			if tech ==3 and techChoice == TWILIGHTCOUNCIL and totalProduction<=3:
+			if tech ==3 and techChoice == TWILIGHTCOUNCIL and (self.units(GATEWAY).amount/self.units(NEXUS).amount)<3 and self.can_afford(GATEWAY):
 				await self.build(GATEWAY, near=pylon)
-			elif tech ==3 and (self.units(techChoice).amount/self.units(NEXUS).amount)<=1:
+			elif tech ==3 and (self.units(techChoice).amount/self.units(NEXUS).amount)<=1 and self.can_afford(techChoice):
 				await self.build(techChoice,near=pylon)
-
 		else:
 			pass
+
+	async def researchUpgrades(self,tech,techChoice,techChoice2):
+		twilight = self.units(TWILIGHTCOUNCIL).ready
+		print(twilight)
+		if twilight.amount>0 and self.can_afford(RESEARCH_BLINK) and twilight.noqueue and self.blink == False:
+			await self.do(twilight(RESEARCH_BLINK))
+			self.blink = True
+
+	async def findPosition(self):
+		target = self.start_location
+		approach_from = self.enemy_start_locations[0]
+		self.buildLocation = target.towards(approach_from,8)
+
 run_game(maps.get("(2)CatalystLE"), [
 	Bot(Race.Protoss, WorkerRushBot()),
 	Computer(Race.Random, Difficulty.Easy)
