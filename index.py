@@ -132,9 +132,11 @@ class WorkerRushBot(sc2.BotAI):
 			pass
 
 	async def researchUpgrades(self,tech,techChoice,techChoice2):
+		if not self.can_afford(RESEARCH_BLINK):
+			return
 		twilight = self.units(TWILIGHTCOUNCIL).ready
-		print(twilight)
-		if twilight.amount>0 and self.can_afford(RESEARCH_BLINK) and twilight.noqueue and self.blink == False:
+		print(self.blink)
+		if (twilight.amount>0) and (self.can_afford(RESEARCH_BLINK)) and (twilight.noqueue) and (self.blink == False):
 			await self.do(twilight(RESEARCH_BLINK))
 			self.blink = True
 
